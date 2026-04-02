@@ -118,6 +118,15 @@ function Team() {
     }
   }
 
+  const removeFromTeam = async (memberId) => {
+    try {
+      await axios.put(`http://127.0.0.1:8000/users/${memberId}`, { team_id: null })
+      setTeamMembers(prev => prev.filter(m => m.id !== memberId))
+    } catch (err) {
+      setError('Failed to remove member from team')
+    }
+  }
+
   const toggleTeamClosed = async () => {
     try {
       const res = await axios.put(`http://127.0.0.1:8000/teams/${team.id}/toggle-closed`)
@@ -277,10 +286,18 @@ function Team() {
                   <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px' }}>
                     {m.full_name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <p style={{ fontWeight: 'bold', fontSize: '14px' }}>{m.full_name} {m.id === user.id && <span style={{ color: '#4f46e5', fontSize: '12px' }}>(you)</span>}</p>
                     <p style={{ color: '#666', fontSize: '12px' }}>{m.email}</p>
                   </div>
+                  {user.permission_level >= 3 && m.id !== user.id && (
+                    <button
+                      onClick={() => removeFromTeam(m.id)}
+                      style={{ padding: '6px 12px', background: 'white', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
+                    >
+                      Remove from team
+                    </button>
+                  )}
                 </div>
               ))
             )}
