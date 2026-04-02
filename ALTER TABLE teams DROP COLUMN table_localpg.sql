@@ -1,1 +1,0 @@
-ALTER TABLE teams DROP COLUMN table_location;
