@@ -1,0 +1,35 @@
+# --- Secrets & Environment Variables ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- Python ---
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# --- JavaScript / Node ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.eslintcache
+
+# --- Database ---
+*.sqlite
+*.sqlite3
+*.db
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editor / IDE ---
+.vscode/
+.idea/

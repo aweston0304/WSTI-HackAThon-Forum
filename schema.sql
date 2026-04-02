@@ -1,9 +1,6 @@
 --
 -- PostgreSQL database dump
 --
-
-\restrict nB0k2NrahmFUjT5JNLdkoHddvDtfiGVZFfRKAN245ZtpAhORJgddQOyU6KvIDe0
-
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
 
@@ -363,6 +360,3 @@ ALTER TABLE ONLY public.users
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict nB0k2NrahmFUjT5JNLdkoHddvDtfiGVZFfRKAN245ZtpAhORJgddQOyU6KvIDe0
-

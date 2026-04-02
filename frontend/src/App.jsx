@@ -3,7 +3,7 @@ import Login from './pages/Login'
 import Admin from './pages/Admin'
 import Mentor from './pages/Mentor'
 import Team from './pages/Team'
-import Navbar from './components/Navbar'
+import Navbar from './Components/Navbar'
 import ProtectedRoute from './Components/ProtectedRoute'
 
 function App() {
