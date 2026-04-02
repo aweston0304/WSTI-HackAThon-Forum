@@ -1,0 +1,372 @@
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+
+function Admin() {
+  const [users, setUsers] = useState([])
+  const [roles, setRoles] = useState([])
+  const [teams, setTeams] = useState([])
+  const [progress, setProgress] = useState([])
+  const [helpRequests, setHelpRequests] = useState([])
+  const [activeTab, setActiveTab] = useState('users')
+  const [newRole, setNewRole] = useState({ role_name: '', permission_level: 1 })
+  const [editingRole, setEditingRole] = useState(null)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  useEffect(() => {
+    fetchAll()
+  }, [])
+
+  const fetchAll = async () => {
+    try {
+      const [usersRes, rolesRes, teamsRes, progressRes, helpRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/users`),
+        axios.get(`${import.meta.env.VITE_API_URL}/roles`),
+        axios.get(`${import.meta.env.VITE_API_URL}/teams`),
+        axios.get(`${import.meta.env.VITE_API_URL}/progress`),
+        axios.get(`${import.meta.env.VITE_API_URL}/help-requests`)
+      ])
+      setUsers(usersRes.data)
+      setRoles(rolesRes.data)
+      setTeams(teamsRes.data)
+      setProgress(progressRes.data)
+      setHelpRequests(helpRes.data)
+    } catch (err) {
+      setError('Failed to load data')
+    }
+  }
+
+  const updateUserRole = async (userId, roleId) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL}/users/${userId}/assign-role`, { role_id: parseInt(roleId) })
+      setSuccess('Role updated!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to update role')
+    }
+  }
+
+  const updateUserTeam = async (userId, teamId) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL}/users/${userId}`, {
+        team_id: teamId === 'null' ? null : parseInt(teamId)
+      })
+      setSuccess('Team updated!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to update team')
+    }
+  }
+
+  const deleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/users/${userId}`)
+      setSuccess('User deleted!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to delete user')
+    }
+  }
+
+  const createRole = async () => {
+    if (!newRole.role_name) {
+      setError('Please enter a role name')
+      return
+    }
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/roles`, newRole)
+      setNewRole({ role_name: '', permission_level: 1 })
+      setSuccess('Role created!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to create role')
+    }
+  }
+
+  const updateRole = async (roleId) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL}/roles/${roleId}`, {
+        role_name: editingRole.role_name,
+        permission_level: editingRole.permission_level
+      })
+      setEditingRole(null)
+      setSuccess('Role updated!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to update role')
+    }
+  }
+
+  const deleteRole = async (roleId) => {
+    if (!window.confirm('Are you sure you want to delete this role?')) return
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/roles/${roleId}`)
+      setSuccess('Role deleted!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to delete role')
+    }
+  }
+
+  const deleteTeam = async (teamId) => {
+    if (!window.confirm('Are you sure you want to delete this team?')) return
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/teams/${teamId}`)
+      setSuccess('Team deleted!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to delete team')
+    }
+  }
+
+  const getLatestProgress = (teamId) => {
+    const teamProgress = progress.filter(p => p.team_id === teamId)
+    if (teamProgress.length === 0) return null
+    return teamProgress.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+  }
+
+  const tabStyle = (tab) => ({
+    padding: '10px 20px',
+    cursor: 'pointer',
+    border: 'none',
+    borderBottom: activeTab === tab ? '2px solid #4f46e5' : '2px solid transparent',
+    background: 'none',
+    fontWeight: activeTab === tab ? 'bold' : 'normal',
+    color: activeTab === tab ? '#4f46e5' : '#666'
+  })
+
+  return (
+    <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
+      <h1 style={{ marginBottom: '8px' }}>Admin Dashboard</h1>
+      <p style={{ color: '#666', marginBottom: '24px' }}>Manage users, roles, teams and requests</p>
+
+      {error && <p style={{ color: 'red', marginBottom: '12px' }}>{error}</p>}
+      {success && <p style={{ color: 'green', marginBottom: '12px' }}>{success}</p>}
+
+      {/* Tabs */}
+      <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '8px' }}>
+        <button style={tabStyle('users')} onClick={() => setActiveTab('users')}>Users ({users.length})</button>
+        <button style={tabStyle('roles')} onClick={() => setActiveTab('roles')}>Roles ({roles.length})</button>
+        <button style={tabStyle('teams')} onClick={() => setActiveTab('teams')}>Teams ({teams.length})</button>
+        <button style={tabStyle('requests')} onClick={() => setActiveTab('requests')}>Help Requests ({helpRequests.length})</button>
+      </div>
+
+      {/* Users Tab */}
+      {activeTab === 'users' && (
+        <div>
+          <h2 style={{ marginBottom: '16px' }}>All Users</h2>
+          {users.length === 0 ? (
+            <p style={{ color: '#666' }}>No users yet</p>
+          ) : (
+            users.map(u => (
+              <div key={u.id} style={{ background: 'white', padding: '16px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <p style={{ fontWeight: 'bold' }}>{u.full_name}</p>
+                  <p style={{ color: '#666', fontSize: '14px' }}>{u.email}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={u.role_id || ''}
+                    onChange={e => updateUserRole(u.id, e.target.value)}
+                    style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  >
+                    <option value="">No role</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>{r.role_name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={u.team_id || 'null'}
+                    onChange={e => updateUserTeam(u.id, e.target.value)}
+                    style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  >
+                    <option value="null">No team</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.team_name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => deleteUser(u.id)}
+                    style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Roles Tab */}
+      {activeTab === 'roles' && (
+        <div>
+          <h2 style={{ marginBottom: '16px' }}>Roles</h2>
+          {roles.map(r => (
+            <div key={r.id} style={{ background: 'white', padding: '16px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+              {editingRole && editingRole.id === r.id ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    value={editingRole.role_name}
+                    onChange={e => setEditingRole({ ...editingRole, role_name: e.target.value })}
+                    style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ccc', flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    value={editingRole.permission_level}
+                    onChange={e => setEditingRole({ ...editingRole, permission_level: parseInt(e.target.value) })}
+                    style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ccc', width: '80px' }}
+                  />
+                  <button
+                    onClick={() => updateRole(r.id)}
+                    style={{ padding: '6px 12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingRole(null)}
+                    style={{ padding: '6px 12px', background: '#e5e7eb', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontWeight: 'bold' }}>{r.role_name}</p>
+                    <p style={{ color: '#666', fontSize: '14px' }}>Permission level: {r.permission_level}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => setEditingRole({ id: r.id, role_name: r.role_name, permission_level: r.permission_level })}
+                      style={{ padding: '6px 12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteRole(r.id)}
+                      style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div style={{ background: 'white', padding: '24px', borderRadius: '8px', marginTop: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ marginBottom: '16px' }}>Create New Role</h3>
+            <input
+              type="text"
+              placeholder="Role name"
+              value={newRole.role_name}
+              onChange={e => setNewRole({ ...newRole, role_name: e.target.value })}
+              style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+            />
+            <input
+              type="number"
+              placeholder="Permission level"
+              value={newRole.permission_level}
+              onChange={e => setNewRole({ ...newRole, permission_level: parseInt(e.target.value) })}
+              style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+            />
+            <button
+              onClick={createRole}
+              style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Create Role
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Teams Tab */}
+      {activeTab === 'teams' && (
+        <div>
+          <h2 style={{ marginBottom: '16px' }}>All Teams</h2>
+          {teams.length === 0 ? (
+            <p style={{ color: '#666' }}>No teams yet</p>
+          ) : (
+            teams.map(t => {
+              const latest = getLatestProgress(t.id)
+              const teamMembers = users.filter(u => u.team_id === t.id)
+              return (
+                <div key={t.id} style={{ background: 'white', padding: '24px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div>
+                      <p style={{ fontWeight: 'bold', fontSize: '18px' }}>{t.team_name}</p>
+                      <p style={{ color: '#666', fontSize: '14px' }}>{t.project_name}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteTeam(t.id)}
+                      style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  {latest && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '14px' }}>{latest.status_label}</span>
+                        <span style={{ fontSize: '14px' }}>{latest.percentage}%</span>
+                      </div>
+                      <div style={{ background: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
+                        <div style={{ background: '#4f46e5', width: `${latest.percentage}%`, height: '8px', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: '14px', color: '#666' }}>
+                    Members: {teamMembers.length === 0 ? 'No members yet' : teamMembers.map(m => m.full_name).join(', ')}
+                  </p>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Help Requests Tab */}
+      {activeTab === 'requests' && (
+        <div>
+          <h2 style={{ marginBottom: '16px' }}>All Help Requests</h2>
+          {helpRequests.length === 0 ? (
+            <p style={{ color: '#666' }}>No help requests yet</p>
+          ) : (
+            helpRequests.map(r => (
+              <div key={r.id} style={{ background: 'white', padding: '16px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 'bold' }}>{r.type_of_help}</span>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    background: r.status === 'open' ? '#fef3c7' : r.status === 'claimed' ? '#dbeafe' : '#d1fae5',
+                    color: r.status === 'open' ? '#92400e' : r.status === 'claimed' ? '#1e40af' : '#065f46'
+                  }}>
+                    {r.status}
+                  </span>
+                </div>
+                <p style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>{r.description}</p>
+                <p style={{ fontSize: '12px', color: '#999' }}>Team: {r.team_id}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default Admin
