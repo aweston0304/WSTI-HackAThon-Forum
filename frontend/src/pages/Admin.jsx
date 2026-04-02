@@ -12,6 +12,7 @@ function Admin() {
   const [activeTab, setActiveTab] = useState('users')
   const [newRole, setNewRole] = useState({ role_name: '', permission_level: 1 })
   const [editingRole, setEditingRole] = useState(null)
+  const [editingTeam, setEditingTeam] = useState(null)
   const [expandedRequest, setExpandedRequest] = useState(null)
   const [replies, setReplies] = useState({})
   const [newReply, setNewReply] = useState('')
@@ -118,6 +119,21 @@ function Admin() {
       fetchAll()
     } catch (err) {
       setError('Failed to delete role')
+    }
+  }
+
+  const updateTeam = async (teamId) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL}/teams/${teamId}`, {
+        team_name: editingTeam.team_name,
+        project_name: editingTeam.project_name
+      })
+      setEditingTeam(null)
+      setSuccess('Team updated!')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchAll()
+    } catch (err) {
+      setError('Failed to update team')
     }
   }
 
@@ -235,7 +251,11 @@ function Admin() {
               {users.length === 0 ? (
                 <p style={{ color: '#666' }}>No users yet</p>
               ) : (
-                users.map(u => (
+                [...users].sort((a, b) => {
+                  const aLevel = roles.find(r => r.id === a.role_id)?.permission_level ?? 0
+                  const bLevel = roles.find(r => r.id === b.role_id)?.permission_level ?? 0
+                  return bLevel - aLevel
+                }).map(u => (
                   <div key={u.id} style={{ background: 'white', padding: '16px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
                       <p style={{ fontWeight: 'bold' }}>{u.full_name}</p>
@@ -371,35 +391,78 @@ function Admin() {
                   const teamMembers = users.filter(u => u.team_id === t.id)
                   return (
                     <div key={t.id} style={{ background: 'white', padding: '24px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      {editingTeam && editingTeam.id === t.id ? (
                         <div>
-                          <p style={{ fontWeight: 'bold', fontSize: '18px' }}>{t.team_name}</p>
-                          <p style={{ color: '#666', fontSize: '14px' }}>{t.project_name}</p>
-                          {t.is_closed && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>🔒 Closed</p>}
+                          <input
+                            type="text"
+                            value={editingTeam.team_name}
+                            onChange={e => setEditingTeam({ ...editingTeam, team_name: e.target.value })}
+                            placeholder="Team name"
+                            style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                          <input
+                            type="text"
+                            value={editingTeam.project_name}
+                            onChange={e => setEditingTeam({ ...editingTeam, project_name: e.target.value })}
+                            placeholder="Project name"
+                            style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => updateTeam(t.id)}
+                              style={{ padding: '6px 12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingTeam(null)}
+                              style={{ padding: '6px 12px', background: '#e5e7eb', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => deleteTeam(t.id)}
-                          style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div>
+                              <p style={{ fontWeight: 'bold', fontSize: '18px' }}>{t.team_name}</p>
+                              <p style={{ color: '#666', fontSize: '14px' }}>{t.project_name}</p>
+                              {t.is_closed && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>🔒 Closed</p>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => setEditingTeam({ id: t.id, team_name: t.team_name, project_name: t.project_name || '' })}
+                                style={{ padding: '6px 12px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteTeam(t.id)}
+                                style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
 
-                      {latest && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '14px' }}>{latest.status_label}</span>
-                            <span style={{ fontSize: '14px' }}>{latest.percentage}%</span>
-                          </div>
-                          <div style={{ background: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
-                            <div style={{ background: '#4f46e5', width: `${latest.percentage}%`, height: '8px', borderRadius: '4px' }} />
-                          </div>
-                        </div>
+                          {latest && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '14px' }}>{latest.status_label}</span>
+                                <span style={{ fontSize: '14px' }}>{latest.percentage}%</span>
+                              </div>
+                              <div style={{ background: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
+                                <div style={{ background: '#4f46e5', width: `${latest.percentage}%`, height: '8px', borderRadius: '4px' }} />
+                              </div>
+                            </div>
+                          )}
+
+                          <p style={{ fontSize: '14px', color: '#666' }}>
+                            Members: {teamMembers.length === 0 ? 'No members yet' : teamMembers.map(m => m.full_name).join(', ')}
+                          </p>
+                        </>
                       )}
-
-                      <p style={{ fontSize: '14px', color: '#666' }}>
-                        Members: {teamMembers.length === 0 ? 'No members yet' : teamMembers.map(m => m.full_name).join(', ')}
-                      </p>
                     </div>
                   )
                 })

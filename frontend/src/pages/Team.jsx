@@ -19,6 +19,8 @@ function Team() {
   const [expandedRequest, setExpandedRequest] = useState(null)
   const [replies, setReplies] = useState({})
   const [newReply, setNewReply] = useState('')
+  const [editingTeam, setEditingTeam] = useState(false)
+  const [teamEdit, setTeamEdit] = useState({ team_name: '', project_name: '' })
 
   useEffect(() => {
     const stored = localStorage.getItem('user')
@@ -124,6 +126,16 @@ function Team() {
       setTeam(res.data)
     } catch (err) {
       setError('Failed to update team status')
+    }
+  }
+
+  const updateTeam = async () => {
+    try {
+      const res = await axios.put(`http://127.0.0.1:8000/teams/${team.id}`, teamEdit)
+      setTeam(res.data)
+      setEditingTeam(false)
+    } catch (err) {
+      setError('Failed to update team')
     }
   }
 
@@ -249,18 +261,59 @@ function Team() {
         <>
           {/* Team Info */}
           <div style={{ background: 'white', padding: '24px', borderRadius: '8px', marginTop: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {editingTeam ? (
               <div>
-                <h2>{team?.team_name}</h2>
-                <p style={{ color: '#666' }}>{team?.project_name}</p>
+                <input
+                  type="text"
+                  value={teamEdit.team_name}
+                  onChange={e => setTeamEdit({ ...teamEdit, team_name: e.target.value })}
+                  placeholder="Team name"
+                  style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+                <input
+                  type="text"
+                  value={teamEdit.project_name}
+                  onChange={e => setTeamEdit({ ...teamEdit, project_name: e.target.value })}
+                  placeholder="Project name"
+                  style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={updateTeam}
+                    style={{ padding: '8px 16px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingTeam(false)}
+                    style={{ padding: '8px 16px', background: '#e5e7eb', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={toggleTeamClosed}
-                style={{ padding: '8px 16px', background: team?.is_closed ? '#10b981' : '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                {team?.is_closed ? '🔓 Open Team' : '🔒 Close Team'}
-              </button>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>{team?.team_name}</h2>
+                  <p style={{ color: '#666' }}>{team?.project_name}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => { setEditingTeam(true); setTeamEdit({ team_name: team.team_name, project_name: team.project_name || '' }) }}
+                    style={{ padding: '8px 16px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={toggleTeamClosed}
+                    style={{ padding: '8px 16px', background: team?.is_closed ? '#10b981' : '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    {team?.is_closed ? '🔓 Open Team' : '🔒 Close Team'}
+                  </button>
+                </div>
+              </div>
+            )}
             {team?.is_closed && (
               <p style={{ marginTop: '8px', color: '#ef4444', fontSize: '14px' }}>This team is closed — no new members can join</p>
             )}
