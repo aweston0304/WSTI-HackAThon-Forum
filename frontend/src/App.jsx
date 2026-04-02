@@ -4,7 +4,7 @@ import Admin from './pages/Admin'
 import Mentor from './pages/Mentor'
 import Team from './pages/Team'
 import Navbar from './components/Navbar'
-import ProtectedRoute from './components/ProtectedRoute'
+import ProtectedRoute from './Components/ProtectedRoute'
 
 function App() {
   return (

@@ -207,6 +207,18 @@ async def delete_team(team_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Team not found")
     return {"message": "Team deleted successfully"}
+@app.put("/teams/{team_id}/toggle-closed")
+async def toggle_team_closed(team_id: int):
+    query = """
+        UPDATE teams
+        SET is_closed = NOT is_closed
+        WHERE id = :team_id
+        RETURNING *
+    """
+    updated = await database.fetch_one(query, values={"team_id": team_id})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return updated
 
 
 # --- Assigning users to teams ---
@@ -224,6 +236,14 @@ async def assign_users_to_team(team_id: int, assignment: TeamAssignment):
 
 @app.post("/teams/{team_id}/join")
 async def join_team(team_id: int, user_id: str):
+    # Check if team is closed
+    check_query = "SELECT * FROM teams WHERE id = :team_id"
+    team = await database.fetch_one(check_query, values={"team_id": team_id})
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if team["is_closed"]:
+        raise HTTPException(status_code=403, detail="This team is closed")
+    
     query = "UPDATE users SET team_id = :team_id WHERE id = :user_id RETURNING *"
     updated = await database.fetch_one(query, values={"team_id": team_id, "user_id": user_id})
     if not updated:
@@ -341,6 +361,33 @@ async def delete_help_request(request_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Help request not found")
     return {"message": "Help request deleted successfully"}
+
+class ReplyCreate(BaseModel):
+    help_request_id: str
+    user_id: Optional[str] = None
+    message: str
+
+@app.get("/help-requests/{request_id}/replies")
+async def get_replies(request_id: str):
+    query = """
+        SELECT r.*, u.full_name, ro.role_name
+        FROM help_request_replies r
+        LEFT JOIN users u ON r.user_id = u.id
+        LEFT JOIN roles ro ON u.role_id = ro.id
+        WHERE r.help_request_id = :request_id
+        ORDER BY r.created_at ASC
+    """
+    return await database.fetch_all(query, values={"request_id": request_id})
+
+@app.post("/help-requests/{request_id}/replies")
+async def create_reply(request_id: str, reply: ReplyCreate):
+    query = """
+        INSERT INTO help_request_replies (help_request_id, user_id, message)
+        VALUES (:help_request_id, :user_id, :message)
+        RETURNING *
+    """
+    return await database.fetch_one(query, values=reply.dict())
+
 
 # --- Progress Models ---
 class ProgressCreate(BaseModel):

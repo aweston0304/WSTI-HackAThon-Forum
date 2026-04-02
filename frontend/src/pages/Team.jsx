@@ -4,17 +4,21 @@ import axios from 'axios'
 function Team() {
   const [user, setUser] = useState(null)
   const [team, setTeam] = useState(null)
+  const [teamMembers, setTeamMembers] = useState([])
   const [progress, setProgress] = useState([])
   const [helpRequests, setHelpRequests] = useState([])
   const [newRequest, setNewRequest] = useState({ type_of_help: '', description: '' })
   const [error, setError] = useState('')
   const [requestError, setRequestError] = useState('')
+  const [progressError, setProgressError] = useState('')
   const [teams, setTeams] = useState([])
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
   const [newTeam, setNewTeam] = useState({ team_name: '', project_name: '' })
   const [newProgress, setNewProgress] = useState({ percentage: '', status_label: '', comment: '' })
-  const [progressError, setProgressError] = useState('')
+  const [expandedRequest, setExpandedRequest] = useState(null)
+  const [replies, setReplies] = useState({})
+  const [newReply, setNewReply] = useState('')
 
   useEffect(() => {
     const stored = localStorage.getItem('user')
@@ -28,24 +32,58 @@ function Team() {
   }, [])
 
   const fetchTeamData = async (teamId, userId) => {
-    console.log('Fetching team data for:', teamId, userId)
     try {
-      const [teamRes, progressRes, requestsRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/teams/${teamId}`),
-        axios.get(`${import.meta.env.VITE_API_URL}/progress/team/${teamId}`),
-        axios.get(`${import.meta.env.VITE_API_URL}/help-requests/team/${teamId}`)
+      const [teamRes, progressRes, requestsRes, usersRes] = await Promise.all([
+        axios.get(`http://127.0.0.1:8000/teams/${teamId}`),
+        axios.get(`http://127.0.0.1:8000/progress/team/${teamId}`),
+        axios.get(`http://127.0.0.1:8000/help-requests/team/${teamId}`),
+        axios.get(`http://127.0.0.1:8000/users`)
       ])
       setTeam(teamRes.data)
       setProgress(progressRes.data)
       setHelpRequests(requestsRes.data)
+      setTeamMembers(usersRes.data.filter(u => u.team_id === teamId))
     } catch (err) {
       setError('Failed to load team data')
     }
   }
 
   const fetchAllTeams = async () => {
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/teams`)
+    const res = await axios.get('http://127.0.0.1:8000/teams')
     setTeams(res.data)
+  }
+
+  const fetchReplies = async (requestId) => {
+    try {
+      const res = await axios.get(`http://127.0.0.1:8000/help-requests/${requestId}/replies`)
+      setReplies(prev => ({ ...prev, [requestId]: res.data }))
+    } catch (err) {
+      console.error('Failed to fetch replies')
+    }
+  }
+
+  const submitReply = async (requestId) => {
+    if (!newReply) return
+    try {
+      await axios.post(`http://127.0.0.1:8000/help-requests/${requestId}/replies`, {
+        help_request_id: requestId,
+        user_id: user.id,
+        message: newReply
+      })
+      setNewReply('')
+      fetchReplies(requestId)
+    } catch (err) {
+      console.error('Failed to submit reply')
+    }
+  }
+
+  const toggleRequest = (requestId) => {
+    if (expandedRequest === requestId) {
+      setExpandedRequest(null)
+    } else {
+      setExpandedRequest(requestId)
+      fetchReplies(requestId)
+    }
   }
 
   const createTeam = async () => {
@@ -54,7 +92,7 @@ function Team() {
       return
     }
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/teams?creator_id=${user.id}`, newTeam)
+      const res = await axios.post(`http://127.0.0.1:8000/teams?creator_id=${user.id}`, newTeam)
       const updatedUser = { ...user, team_id: res.data.id }
       localStorage.setItem('user', JSON.stringify(updatedUser))
       setUser(updatedUser)
@@ -66,64 +104,69 @@ function Team() {
 
   const joinTeam = async (teamId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/teams/${teamId}/join?user_id=${user.id}`)
+      await axios.post(`http://127.0.0.1:8000/teams/${teamId}/join?user_id=${user.id}`)
       const updatedUser = { ...user, team_id: teamId }
       localStorage.setItem('user', JSON.stringify(updatedUser))
       setUser(updatedUser)
       fetchTeamData(teamId, user.id)
     } catch (err) {
-      setError('Failed to join team')
+      if (err.response?.status === 403) {
+        setError('This team is closed and not accepting new members')
+      } else {
+        setError('Failed to join team')
+      }
+    }
+  }
+
+  const toggleTeamClosed = async () => {
+    try {
+      const res = await axios.put(`http://127.0.0.1:8000/teams/${team.id}/toggle-closed`)
+      setTeam(res.data)
+    } catch (err) {
+      setError('Failed to update team status')
     }
   }
 
   const submitHelpRequest = async () => {
-  if (!newRequest.type_of_help || !newRequest.description) {
-    setRequestError('Please fill in all fields')
-    return
+    if (!newRequest.type_of_help || !newRequest.description) {
+      setRequestError('Please fill in all fields')
+      return
+    }
+    try {
+      await axios.post('http://127.0.0.1:8000/help-requests', {
+        team_id: user.team_id,
+        created_by: user.id,
+        type_of_help: newRequest.type_of_help,
+        description: newRequest.description,
+        is_private: false
+      })
+      setNewRequest({ type_of_help: '', description: '' })
+      setRequestError('')
+      fetchTeamData(user.team_id, user.id)
+    } catch (err) {
+      setRequestError('Failed to submit help request')
+    }
   }
-  try {
-    await axios.post(`${import.meta.env.VITE_API_URL}/help-requests`, {
-      team_id: user.team_id,
-      created_by: user.id,
-      type_of_help: newRequest.type_of_help,
-      description: newRequest.description,
-      is_private: false
-    })
-    setNewRequest({ type_of_help: '', description: '' })
-    setRequestError('')
-    fetchTeamData(user.team_id, user.id)
-  } catch (err) {
-    setRequestError('Failed to submit help request')
+
+  const submitProgress = async () => {
+    if (!newProgress.percentage) {
+      setProgressError('Please enter a percentage')
+      return
+    }
+    try {
+      await axios.post('http://127.0.0.1:8000/progress', {
+        team_id: user.team_id,
+        percentage: parseInt(newProgress.percentage),
+        status_label: newProgress.status_label,
+        comment: newProgress.comment
+      })
+      setNewProgress({ percentage: '', status_label: '', comment: '' })
+      setProgressError('')
+      fetchTeamData(user.team_id, user.id)
+    } catch (err) {
+      setProgressError('Failed to submit progress update')
+    }
   }
-}
-const submitProgress = async () => {
-  if (!newProgress.percentage) {
-    setProgressError('Please enter a percentage')
-    return
-  }
-  try {
-    await axios.post('http://127.0.0.1:8000/progress', {
-      team_id: user.team_id,
-      percentage: parseInt(newProgress.percentage),
-      status_label: newProgress.status_label,
-      comment: newProgress.comment
-    })
-    setNewProgress({ percentage: '', status_label: '', comment: '' })
-    setProgressError('')
-    fetchTeamData(user.team_id, user.id)
-  } catch (err) {
-    setProgressError('Failed to submit progress update')
-  }
-}
-
-
-
-
-
-
-
-
-
 
   if (!user) return <p>Loading...</p>
 
@@ -167,7 +210,7 @@ const submitProgress = async () => {
                 onChange={e => setNewTeam({ ...newTeam, project_name: e.target.value })}
                 style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
               />
-              {requestError && <p style={{ color: 'red', marginBottom: '12px' }}>{requestError}</p>}
+              {error && <p style={{ color: 'red', marginBottom: '12px' }}>{error}</p>}
               <button
                 onClick={createTeam}
                 style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -179,20 +222,22 @@ const submitProgress = async () => {
 
           {showJoin && (
             <div>
+              {error && <p style={{ color: 'red', marginBottom: '12px' }}>{error}</p>}
               {teams.length === 0 ? (
                 <p style={{ color: '#666' }}>No teams available yet</p>
               ) : (
                 teams.map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '4px', marginBottom: '8px' }}>
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '4px', marginBottom: '8px', opacity: t.is_closed ? 0.5 : 1 }}>
                     <div>
-                      <p style={{ fontWeight: 'bold' }}>{t.team_name}</p>
+                      <p style={{ fontWeight: 'bold' }}>{t.team_name} {t.is_closed && <span style={{ fontSize: '12px', color: '#ef4444' }}>— Closed</span>}</p>
                       <p style={{ color: '#666', fontSize: '14px' }}>{t.project_name}</p>
                     </div>
                     <button
-                      onClick={() => joinTeam(t.id)}
-                      style={{ padding: '8px 16px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                      onClick={() => !t.is_closed && joinTeam(t.id)}
+                      disabled={t.is_closed}
+                      style={{ padding: '8px 16px', background: t.is_closed ? '#ccc' : '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: t.is_closed ? 'not-allowed' : 'pointer' }}
                     >
-                      Join
+                      {t.is_closed ? 'Closed' : 'Join'}
                     </button>
                   </div>
                 ))
@@ -204,8 +249,41 @@ const submitProgress = async () => {
         <>
           {/* Team Info */}
           <div style={{ background: 'white', padding: '24px', borderRadius: '8px', marginTop: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-            <h2>{team?.team_name}</h2>
-            <p style={{ color: '#666' }}>{team?.project_name}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2>{team?.team_name}</h2>
+                <p style={{ color: '#666' }}>{team?.project_name}</p>
+              </div>
+              <button
+                onClick={toggleTeamClosed}
+                style={{ padding: '8px 16px', background: team?.is_closed ? '#10b981' : '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {team?.is_closed ? '🔓 Open Team' : '🔒 Close Team'}
+              </button>
+            </div>
+            {team?.is_closed && (
+              <p style={{ marginTop: '8px', color: '#ef4444', fontSize: '14px' }}>This team is closed — no new members can join</p>
+            )}
+          </div>
+
+          {/* Team Members */}
+          <div style={{ background: 'white', padding: '24px', borderRadius: '8px', marginTop: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+            <h2 style={{ marginBottom: '16px' }}>Team Members ({teamMembers.length})</h2>
+            {teamMembers.length === 0 ? (
+              <p style={{ color: '#666' }}>No members yet</p>
+            ) : (
+              teamMembers.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px' }}>
+                    {m.full_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 'bold', fontSize: '14px' }}>{m.full_name} {m.id === user.id && <span style={{ color: '#4f46e5', fontSize: '12px' }}>(you)</span>}</p>
+                    <p style={{ color: '#666', fontSize: '12px' }}>{m.email}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Progress */}
@@ -227,38 +305,40 @@ const submitProgress = async () => {
                 </div>
               ))
             )}
+
+            {/* Add Progress Update */}
             <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-                <h3 style={{ marginBottom: '12px' }}>Add Progress Update</h3>
-                <input
-                    type="number"
-                    placeholder="Percentage (0-100)"
-                    value={newProgress.percentage}
-                    min="0"
-                    max="100"
-                    onChange={e => setNewProgress({ ...newProgress, percentage: e.target.value })}
-                    style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-                <input
-                    type="text"
-                    placeholder="Status label (e.g. MVP, Planning, Testing)"
-                    value={newProgress.status_label}
-                    onChange={e => setNewProgress({ ...newProgress, status_label: e.target.value })}
-                    style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-                <textarea
-                    placeholder="Comment (optional)"
-                    value={newProgress.comment}
-                    onChange={e => setNewProgress({ ...newProgress, comment: e.target.value })}
-                    style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc', height: '80px' }}
-                />
-                {progressError && <p style={{ color: 'red', marginBottom: '12px' }}>{progressError}</p>}
-                <button
-                    onClick={submitProgress}
-                    style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                    Submit Update
-                </button>
-                </div>
+              <h3 style={{ marginBottom: '12px' }}>Add Progress Update</h3>
+              <input
+                type="number"
+                placeholder="Percentage (0-100)"
+                value={newProgress.percentage}
+                min="0"
+                max="100"
+                onChange={e => setNewProgress({ ...newProgress, percentage: e.target.value })}
+                style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+              />
+              <input
+                type="text"
+                placeholder="Status label (e.g. MVP, Planning, Testing)"
+                value={newProgress.status_label}
+                onChange={e => setNewProgress({ ...newProgress, status_label: e.target.value })}
+                style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+              />
+              <textarea
+                placeholder="Comment (optional)"
+                value={newProgress.comment}
+                onChange={e => setNewProgress({ ...newProgress, comment: e.target.value })}
+                style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc', height: '80px' }}
+              />
+              {progressError && <p style={{ color: 'red', marginBottom: '12px' }}>{progressError}</p>}
+              <button
+                onClick={submitProgress}
+                style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Submit Update
+              </button>
+            </div>
           </div>
 
           {/* Submit Help Request */}
@@ -277,7 +357,7 @@ const submitProgress = async () => {
               onChange={e => setNewRequest({ ...newRequest, description: e.target.value })}
               style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc', height: '100px' }}
             />
-            {error && <p style={{ color: 'red', marginBottom: '12px' }}>{error}</p>}
+            {requestError && <p style={{ color: 'red', marginBottom: '12px' }}>{requestError}</p>}
             <button
               onClick={submitHelpRequest}
               style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -293,20 +373,63 @@ const submitProgress = async () => {
               <p style={{ color: '#666' }}>No help requests yet</p>
             ) : (
               helpRequests.map(r => (
-                <div key={r.id} style={{ padding: '16px', border: '1px solid #e5e7eb', borderRadius: '4px', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 'bold' }}>{r.type_of_help}</span>
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      background: r.status === 'open' ? '#fef3c7' : r.status === 'claimed' ? '#dbeafe' : '#d1fae5',
-                      color: r.status === 'open' ? '#92400e' : r.status === 'claimed' ? '#1e40af' : '#065f46'
-                    }}>
-                      {r.status}
-                    </span>
+                <div key={r.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '12px', overflow: 'hidden' }}>
+                  <div
+                    onClick={() => toggleRequest(r.id)}
+                    style={{ padding: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: expandedRequest === r.id ? '#f9fafb' : 'white' }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 'bold' }}>{r.type_of_help}</span>
+                      <p style={{ color: '#666', marginTop: '4px', fontSize: '14px' }}>{r.description}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        background: r.status === 'open' ? '#fef3c7' : r.status === 'claimed' ? '#dbeafe' : '#d1fae5',
+                        color: r.status === 'open' ? '#92400e' : r.status === 'claimed' ? '#1e40af' : '#065f46'
+                      }}>
+                        {r.status}
+                      </span>
+                      <span style={{ color: '#666' }}>{expandedRequest === r.id ? '▲' : '▼'}</span>
+                    </div>
                   </div>
-                  <p style={{ color: '#666', marginTop: '8px' }}>{r.description}</p>
+
+                  {expandedRequest === r.id && (
+                    <div style={{ padding: '16px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                      {replies[r.id] && replies[r.id].length > 0 ? (
+                        replies[r.id].map(reply => (
+                          <div key={reply.id} style={{ marginBottom: '12px', padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{reply.full_name || 'Unknown'} - {reply.role_name || 'No role'}</span>
+                              <span style={{ fontSize: '12px', color: '#999' }}>{new Date(reply.created_at).toLocaleString()}</span>
+                            </div>
+                            <p style={{ fontSize: '14px', color: '#333' }}>{reply.message}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p style={{ color: '#666', fontSize: '14px', marginBottom: '12px' }}>No replies yet</p>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <input
+                          type="text"
+                          placeholder="Write a reply..."
+                          value={newReply}
+                          onChange={e => setNewReply(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && submitReply(r.id)}
+                          style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                        />
+                        <button
+                          onClick={() => submitReply(r.id)}
+                          style={{ padding: '8px 16px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
