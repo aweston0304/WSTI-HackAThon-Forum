@@ -397,9 +397,26 @@ function Admin() {
                         </div>
                       )}
 
-                      <p style={{ fontSize: '14px', color: '#666' }}>
-                        Members: {teamMembers.length === 0 ? 'No members yet' : teamMembers.map(m => m.full_name).join(', ')}
-                      </p>
+                      <div style={{ marginTop: '8px' }}>
+                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
+                          Members: {teamMembers.length === 0 ? 'No members yet' : ''}
+                        </p>
+                        {teamMembers.map(m => (
+                          <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>
+                            <span style={{ fontSize: '14px' }}>{m.full_name}</span>
+                            <select
+                              value={m.team_id || 'null'}
+                              onChange={e => updateUserTeam(m.id, e.target.value)}
+                              style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' }}
+                            >
+                              <option value="null">Remove from team</option>
+                              {teams.map(t => (
+                                <option key={t.id} value={t.id}>{t.team_name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )
                 })
