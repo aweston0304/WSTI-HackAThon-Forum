@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # source venv/bin/activate
 # uvicorn main:app --reload
-
+# npm run dev
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -158,20 +158,25 @@ async def get_teams():
 
 @app.post("/teams")
 async def create_team(team: TeamCreate, creator_id: Optional[str] = None):
+    # Check if team name already exists
+    check_query = "SELECT * FROM teams WHERE LOWER(team_name) = LOWER(:team_name)"
+    existing = await database.fetch_one(check_query, values={"team_name": team.team_name})
+    if existing:
+        raise HTTPException(status_code=400, detail="A team with this name already exists")
+
     query = """
         INSERT INTO teams (team_name, project_name)
         VALUES (:team_name, :project_name)
         RETURNING *
     """
     new_team = await database.fetch_one(query, values=team.dict())
-    
-    # Assign creator to the team if provided
+
     if creator_id:
         await database.execute(
             "UPDATE users SET team_id = :team_id WHERE id = :user_id",
             values={"team_id": new_team["id"], "user_id": creator_id}
         )
-    
+
     return new_team
 
 
@@ -187,6 +192,13 @@ async def get_team(team_id: int):
 
 @app.put("/teams/{team_id}")
 async def update_team(team_id: int, team: TeamUpdate):
+    # Check if new name already exists on a different team
+    if team.team_name:
+        check_query = "SELECT * FROM teams WHERE LOWER(team_name) = LOWER(:team_name) AND id != :team_id"
+        existing = await database.fetch_one(check_query, values={"team_name": team.team_name, "team_id": team_id})
+        if existing:
+            raise HTTPException(status_code=400, detail="A team with this name already exists")
+
     query = """
         UPDATE teams
         SET team_name = COALESCE(:team_name, team_name),
@@ -392,7 +404,6 @@ async def create_reply(request_id: str, reply: ReplyCreate):
 # --- Progress Models ---
 class ProgressCreate(BaseModel):
     team_id: int
-    percentage: int
     status_label: Optional[str] = None
     comment: Optional[str] = None
 
@@ -410,8 +421,8 @@ async def get_team_progress(team_id: int):
 @app.post("/progress")
 async def create_progress(progress: ProgressCreate):
     query = """
-        INSERT INTO progress (team_id, percentage, status_label, comment)
-        VALUES (:team_id, :percentage, :status_label, :comment)
+        INSERT INTO progress (team_id, status_label, comment)
+        VALUES (:team_id, :status_label, :comment)
         RETURNING *
     """
     return await database.fetch_one(query, values=progress.dict())

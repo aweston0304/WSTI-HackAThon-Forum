@@ -133,7 +133,7 @@ function Admin() {
       setTimeout(() => setSuccess(''), 2000)
       fetchAll()
     } catch (err) {
-      setError('Failed to update team')
+      setError(err.response?.data?.detail || 'Failed to update team')
     }
   }
 
@@ -446,16 +446,16 @@ function Admin() {
                             </div>
                           </div>
 
-                          {latest && (
-                            <div style={{ marginBottom: '12px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '14px' }}>{latest.status_label}</span>
-                                <span style={{ fontSize: '14px' }}>{latest.percentage}%</span>
+                          {latest ? (
+                            <div style={{ marginBottom: '12px', padding: '10px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{latest.status_label}</span>
+                                <span style={{ fontSize: '12px', color: '#999' }}>{new Date(latest.created_at).toLocaleString()}</span>
                               </div>
-                              <div style={{ background: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
-                                <div style={{ background: '#4f46e5', width: `${latest.percentage}%`, height: '8px', borderRadius: '4px' }} />
-                              </div>
+                              <p style={{ color: '#666', fontSize: '14px', marginTop: '4px' }}>{latest.comment}</p>
                             </div>
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '14px', marginBottom: '12px' }}>No progress updates yet</p>
                           )}
 
                           <p style={{ fontSize: '14px', color: '#666' }}>

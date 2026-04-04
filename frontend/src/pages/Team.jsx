@@ -15,7 +15,7 @@ function Team() {
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
   const [newTeam, setNewTeam] = useState({ team_name: '', project_name: '' })
-  const [newProgress, setNewProgress] = useState({ percentage: '', status_label: '', comment: '' })
+  const [newProgress, setNewProgress] = useState({ status_label: '', comment: '' })
   const [expandedRequest, setExpandedRequest] = useState(null)
   const [replies, setReplies] = useState({})
   const [newReply, setNewReply] = useState('')
@@ -100,7 +100,7 @@ function Team() {
       setUser(updatedUser)
       fetchTeamData(res.data.id, user.id)
     } catch (err) {
-      setError('Failed to create team')
+      setError(err.response?.data?.detail || 'Failed to create team')
     }
   }
 
@@ -135,7 +135,7 @@ function Team() {
       setTeam(res.data)
       setEditingTeam(false)
     } catch (err) {
-      setError('Failed to update team')
+      setError(err.response?.data?.detail || 'Failed to update team')
     }
   }
 
@@ -161,22 +161,21 @@ function Team() {
   }
 
   const submitProgress = async () => {
-    if (!newProgress.percentage) {
-      setProgressError('Please enter a percentage')
+    if (!newProgress.comment && !newProgress.status_label) {
+      setProgressError('Please enter a status or comment')
       return
     }
     try {
       await axios.post('http://127.0.0.1:8000/progress', {
         team_id: user.team_id,
-        percentage: parseInt(newProgress.percentage),
         status_label: newProgress.status_label,
         comment: newProgress.comment
       })
-      setNewProgress({ percentage: '', status_label: '', comment: '' })
+      setNewProgress({ status_label: '', comment: '' })
       setProgressError('')
       fetchTeamData(user.team_id, user.id)
     } catch (err) {
-      setProgressError('Failed to submit progress update')
+      setProgressError('Failed to post update')
     }
   }
 
@@ -341,20 +340,17 @@ function Team() {
 
           {/* Progress */}
           <div style={{ background: 'white', padding: '24px', borderRadius: '8px', marginTop: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-            <h2 style={{ marginBottom: '16px' }}>Progress</h2>
+            <h2 style={{ marginBottom: '16px' }}>Progress Updates</h2>
             {progress.length === 0 ? (
               <p style={{ color: '#666' }}>No progress updates yet</p>
             ) : (
               progress.map(p => (
-                <div key={p.id} style={{ marginBottom: '16px' }}>
+                <div key={p.id} style={{ marginBottom: '12px', padding: '12px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>{p.status_label}</span>
-                    <span>{p.percentage}%</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{p.status_label}</span>
+                    <span style={{ fontSize: '12px', color: '#999' }}>{new Date(p.created_at).toLocaleString()}</span>
                   </div>
-                  <div style={{ background: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
-                    <div style={{ background: '#4f46e5', width: `${p.percentage}%`, height: '8px', borderRadius: '4px' }} />
-                  </div>
-                  <p style={{ color: '#666', marginTop: '4px', fontSize: '14px' }}>{p.comment}</p>
+                  <p style={{ color: '#666', fontSize: '14px' }}>{p.comment}</p>
                 </div>
               ))
             )}
@@ -363,15 +359,6 @@ function Team() {
             <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
               <h3 style={{ marginBottom: '12px' }}>Add Progress Update</h3>
               <input
-                type="number"
-                placeholder="Percentage (0-100)"
-                value={newProgress.percentage}
-                min="0"
-                max="100"
-                onChange={e => setNewProgress({ ...newProgress, percentage: e.target.value })}
-                style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
-              />
-              <input
                 type="text"
                 placeholder="Status label (e.g. MVP, Planning, Testing)"
                 value={newProgress.status_label}
@@ -379,7 +366,7 @@ function Team() {
                 style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
               />
               <textarea
-                placeholder="Comment (optional)"
+                placeholder="Describe your progress..."
                 value={newProgress.comment}
                 onChange={e => setNewProgress({ ...newProgress, comment: e.target.value })}
                 style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc', height: '80px' }}
@@ -389,7 +376,7 @@ function Team() {
                 onClick={submitProgress}
                 style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
               >
-                Submit Update
+                Post Update
               </button>
             </div>
           </div>
