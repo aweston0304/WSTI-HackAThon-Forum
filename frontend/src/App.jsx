@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import Admin from './pages/Admin/Admin'
-import Mentor from './pages/Mentor'
+import Mentor from './pages/Mentor/Mentor'
 import Team from './pages/Team/Team'
 import Navbar from './Components/Navbar'
 import ProtectedRoute from './Components/ProtectedRoute'

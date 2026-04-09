@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import Mentor from '../Mentor'
+import Mentor from '../Mentor/Mentor'
 import Team from '../Team/Team'
 import AdminProgressBoard from './AdminProgressBoard'
 import AdminHelpRequests from './AdminHelpRequests'
