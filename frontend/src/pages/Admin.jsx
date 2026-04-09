@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import Mentor from './Mentor'
-import Team from './Team'
+import Team from './Team/Team'
 
 function Admin() {
   const [users, setUsers] = useState([])
@@ -9,7 +9,10 @@ function Admin() {
   const [teams, setTeams] = useState([])
   const [progress, setProgress] = useState([])
   const [helpRequests, setHelpRequests] = useState([])
-  const [activeTab, setActiveTab] = useState('users')
+  
+  // Set progress as the default tab!
+  const [activeTab, setActiveTab] = useState('progress')
+  
   const [newRole, setNewRole] = useState({ role_name: '', permission_level: 1 })
   const [editingRole, setEditingRole] = useState(null)
   const [editingTeam, setEditingTeam] = useState(null)
@@ -19,6 +22,9 @@ function Admin() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [viewAs, setViewAs] = useState('admin')
+  
+  // NEW: State to track which team's history is expanded
+  const [expandedTeamProgress, setExpandedTeamProgress] = useState(null)
 
   useEffect(() => {
     fetchAll()
@@ -162,7 +168,17 @@ function Admin() {
     if (!newReply) return
     try {
       const stored = localStorage.getItem('user')
+      if (!stored) {
+        setError('User session not found. Please log in again.')
+        return
+      }
+      
       const user = JSON.parse(stored)
+      if (!user || !user.id) {
+        setError('Invalid user data. Please log in again.')
+        return
+      }
+
       await axios.post(`${import.meta.env.VITE_API_URL}/help-requests/${requestId}/replies`, {
         help_request_id: requestId,
         user_id: user.id,
@@ -182,12 +198,6 @@ function Admin() {
       setExpandedRequest(requestId)
       fetchReplies(requestId)
     }
-  }
-
-  const getLatestProgress = (teamId) => {
-    const teamProgress = progress.filter(p => p.team_id === teamId)
-    if (teamProgress.length === 0) return null
-    return teamProgress.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
   }
 
   const getTeamName = (teamId) => {
@@ -238,11 +248,99 @@ function Admin() {
 
           {/* Tabs */}
           <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '8px' }}>
+            <button style={tabStyle('progress')} onClick={() => setActiveTab('progress')}>Live Progress</button>
+            <button style={tabStyle('requests')} onClick={() => setActiveTab('requests')}>Help Requests ({helpRequests.length})</button>
+            <button style={tabStyle('teams')} onClick={() => setActiveTab('teams')}>Teams ({teams.length})</button>
             <button style={tabStyle('users')} onClick={() => setActiveTab('users')}>Users ({users.length})</button>
             <button style={tabStyle('roles')} onClick={() => setActiveTab('roles')}>Roles ({roles.length})</button>
-            <button style={tabStyle('teams')} onClick={() => setActiveTab('teams')}>Teams ({teams.length})</button>
-            <button style={tabStyle('requests')} onClick={() => setActiveTab('requests')}>Help Requests ({helpRequests.length})</button>
           </div>
+
+          {/* Progress Board Tab */}
+          {activeTab === 'progress' && (
+            <div>
+              <h2 style={{ marginBottom: '16px' }}>Live Progress Board</h2>
+              
+              {teams.length === 0 ? (
+                <p style={{ color: '#666' }}>No teams available.</p>
+              ) : (
+                teams.map(t => {
+                  // 1. Group progress by this specific team
+                  const teamProgress = progress.filter(p => p.team_id === t.id);
+
+                  // If a team has no progress yet, hide them
+                  if (teamProgress.length === 0) return null;
+
+                  // 2. Sort the progress updates newest to oldest
+                  const sortedProgress = [...teamProgress].sort(
+                    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+                  );
+
+                  // 3. Separate the most recent update from the older history
+                  const latest = sortedProgress[0];
+                  const olderUpdates = sortedProgress.slice(1);
+                  const hasOlderUpdates = olderUpdates.length > 0;
+
+                  return (
+                    <div key={t.id} style={{ background: 'white', padding: '20px', borderRadius: '8px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+                      
+                      {/* Team Header */}
+                      <div style={{ marginBottom: '12px', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
+                        <h3 style={{ margin: 0, fontSize: '18px' }}>{t.team_name}</h3>
+                        <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>{t.project_name}</p>
+                      </div>
+
+                      {/* Latest Update (Always Visible) */}
+                      <div
+                        onClick={() => hasOlderUpdates && setExpandedTeamProgress(expandedTeamProgress === t.id ? null : t.id)}
+                        style={{
+                          padding: '12px',
+                          background: '#f9fafb',
+                          borderRadius: '6px',
+                          border: '1px solid #e5e7eb',
+                          cursor: hasOlderUpdates ? 'pointer' : 'default',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <span style={{ fontWeight: 'bold', fontSize: '14px', padding: '4px 8px', background: '#e0e7ff', color: '#3730a3', borderRadius: '4px' }}>
+                              {latest.status_label}
+                            </span>
+                            <p style={{ color: '#333', fontSize: '15px', marginTop: '8px', marginBottom: 0 }}>{latest.comment}</p>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', color: '#666' }}>
+                              {new Date(latest.created_at).toLocaleString()}
+                            </span>
+                            {hasOlderUpdates && (
+                              <span style={{ color: '#4f46e5', fontSize: '13px', fontWeight: 'bold' }}>
+                                {expandedTeamProgress === t.id ? '▲ Hide History' : `▼ See History (${olderUpdates.length})`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Older Updates (Collapsible) */}
+                      {expandedTeamProgress === t.id && hasOlderUpdates && (
+                        <div style={{ marginTop: '12px', paddingLeft: '16px', borderLeft: '3px solid #4f46e5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {olderUpdates.map(p => (
+                            <div key={p.id} style={{ padding: '12px', background: '#ffffff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#4b5563' }}>{p.status_label}</span>
+                                <span style={{ fontSize: '12px', color: '#9ca3af' }}>{new Date(p.created_at).toLocaleString()}</span>
+                              </div>
+                              <p style={{ color: '#4b5563', fontSize: '14px', margin: 0 }}>{p.comment}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
 
           {/* Users Tab */}
           {activeTab === 'users' && (
@@ -387,8 +485,8 @@ function Admin() {
                 <p style={{ color: '#666' }}>No teams yet</p>
               ) : (
                 teams.map(t => {
-                  const latest = getLatestProgress(t.id)
                   const teamMembers = users.filter(u => u.team_id === t.id)
+
                   return (
                     <div key={t.id} style={{ background: 'white', padding: '24px', borderRadius: '8px', marginBottom: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
                       {editingTeam && editingTeam.id === t.id ? (
@@ -446,18 +544,6 @@ function Admin() {
                             </div>
                           </div>
 
-                          {latest ? (
-                            <div style={{ marginBottom: '12px', padding: '10px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{latest.status_label}</span>
-                                <span style={{ fontSize: '12px', color: '#999' }}>{new Date(latest.created_at).toLocaleString()}</span>
-                              </div>
-                              <p style={{ color: '#666', fontSize: '14px', marginTop: '4px' }}>{latest.comment}</p>
-                            </div>
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '14px', marginBottom: '12px' }}>No progress updates yet</p>
-                          )}
-
                           <p style={{ fontSize: '14px', color: '#666' }}>
                             Members: {teamMembers.length === 0 ? 'No members yet' : teamMembers.map(m => m.full_name).join(', ')}
                           </p>
@@ -469,7 +555,7 @@ function Admin() {
               )}
             </div>
           )}
-
+          
           {/* Help Requests Tab */}
           {activeTab === 'requests' && (
             <div>
@@ -484,8 +570,18 @@ function Admin() {
                       style={{ padding: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: expandedRequest === r.id ? '#f9fafb' : 'white' }}
                     >
                       <div>
-                        <span style={{ fontWeight: 'bold' }}>{r.type_of_help}</span>
-                        <p style={{ color: '#666', marginTop: '4px', fontSize: '14px' }}>{r.description}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{r.type_of_help}</span>
+                          
+                          {/* Add the Private badge here! */}
+                          {r.is_private && (
+                            <span style={{ padding: '2px 6px', background: '#fef2f2', color: '#ef4444', fontSize: '12px', borderRadius: '4px' }}>
+                              🔒 Private
+                            </span>
+                          )}
+                        </div>
+                        
+                        <p style={{ color: '#666', marginTop: '6px', fontSize: '14px' }}>{r.description}</p>
                         <p style={{ color: '#999', marginTop: '4px', fontSize: '12px' }}>Team: {getTeamName(r.team_id)}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

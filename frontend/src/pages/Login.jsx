@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 
@@ -8,6 +8,16 @@ function Login() {
   const [isRegistering, setIsRegistering] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+
+useEffect(() => {
+  const stored = localStorage.getItem('user')
+  if (stored) {
+    const user = JSON.parse(stored)
+    if (user.role_id === 1) navigate('/admin')
+    else if (user.role_id === 2) navigate('/mentor')
+    else navigate('/team')
+  }
+}, [])
 
   const handleLogin = async () => {
   try {
