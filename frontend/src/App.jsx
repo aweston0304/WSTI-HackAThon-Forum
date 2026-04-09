@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
-import Admin from './pages/Admin'
+import Admin from './pages/Admin/Admin'
 import Mentor from './pages/Mentor'
 import Team from './pages/Team/Team'
 import Navbar from './Components/Navbar'
